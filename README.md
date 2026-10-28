@@ -12,7 +12,26 @@ Eine deutschsprachige Web-App zum Erfassen und Verwalten von Anforderungen, geba
 - Lokale Speicherung im Browser und JSON-Export als Datensicherung.
 - Responsive Oberfläche und per Tastatur bedienbare Dialoge.
 
-## Auf dem eigenen Computer öffnen
+## Im Browser öffnen (GitHub Pages)
+
+Nach erfolgreicher Veröffentlichung öffnest du die Anwendung direkt unter:
+
+**https://w6p9jk84gk-debug.github.io/Anforderungsmanagement/**
+
+Du brauchst dafür nichts auf deinem Computer zu installieren. Anforderungen werden weiterhin nur im Browser gespeichert. Daten von einer zuvor lokal gestarteten App werden nicht automatisch auf diese Adresse übertragen.
+
+### Einmalige Aktivierung auf GitHub
+
+1. Öffne das [Repository](https://github.com/w6p9jk84gk-debug/Anforderungsmanagement) und klicke oben auf **Settings** (Einstellungen).
+2. Wähle links **Pages** (unter **Code and automation**).
+3. Wähle unter **Build and deployment → Source** den Eintrag **GitHub Actions**.
+4. Öffne oben **Actions**. Falls GitHub zuerst eine Schaltfläche zur Aktivierung von Workflows zeigt, aktiviere sie. Wähle links **Publish to GitHub Pages**.
+5. Klicke **Run workflow**, wähle den Branch **main** und bestätige mit **Run workflow**. Falls bereits ein erfolgreicher Lauf für den aktuellen Commit angezeigt wird, ist dieser Schritt nicht erforderlich.
+6. Warte, bis **Build application** und **Deploy website** grün sind. Öffne anschließend die Adresse oben. Im Workflow-Ergebnis steht die tatsächliche Website-Adresse beim Deployment ebenfalls bereit.
+
+Der Workflow in `.github/workflows/deploy-pages.yml` veröffentlicht zukünftige Änderungen an `main` automatisch. Er installiert die Abhängigkeiten aus der Lockdatei, prüft TypeScript, baut die Anwendung und lädt ausschließlich `dist/` zu GitHub Pages hoch. Die Actions sind auf feste Commit-Versionen gesetzt. Der Vite-Basispfad ist `/Anforderungsmanagement/`.
+
+## Optional: Auf dem eigenen Computer öffnen
 
 1. Installiere **Node.js 24 LTS** von [nodejs.org](https://nodejs.org/). Das Installationsprogramm installiert auch `npm`, das die benötigten Pakete lädt. Öffne nach der Installation ein neues Terminal.
 2. Öffne das [GitHub-Repository](https://github.com/w6p9jk84gk-debug/Anforderungsmanagement). Wähle **Code → Download ZIP** und entpacke die ZIP-Datei vollständig. Alternativ kannst du das Repository mit Git klonen.
@@ -28,7 +47,7 @@ Eine deutschsprachige Web-App zum Erfassen und Verwalten von Anforderungen, geba
 
 Der erste Befehl installiert die festgelegten Abhängigkeiten und benötigt Internetzugang. Der zweite startet die Anwendung auf deinem Computer. Zum Beenden drückst du im Terminal **Strg+C**. Beim nächsten Start genügt der zweite Befehl. Sollte Port 5173 bereits belegt sein, beende zuerst eine eventuell noch laufende Instanz.
 
-Die Dateien auf GitHub sind der Quellcode; eine öffentlich gehostete Website ist damit noch nicht eingerichtet. Die `index.html` muss über den Entwicklungsserver geöffnet werden. Ein Doppelklick auf diese Datei startet die Anwendung nicht korrekt.
+Die Dateien im Repository sind der Quellcode; für die Nutzung ohne Installation verwende GitHub Pages wie oben beschrieben. Für den lokalen Betrieb muss die `index.html` über den Entwicklungsserver geöffnet werden. Ein Doppelklick auf diese Datei startet die Anwendung nicht korrekt.
 
 ## Entwicklung in der Cloud-Umgebung
 
