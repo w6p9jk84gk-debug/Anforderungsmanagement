@@ -17,7 +17,10 @@ export type WorkflowStep = {
   statusId: string;
   roleIds: string[];
 };
+export type Project = { id: string; name: string };
+export const testProjectId = "project-zambi";
 export type Configuration = {
+  projects: Project[];
   statuses: StatusDefinition[];
   roles: Role[];
   steps: WorkflowStep[];
@@ -33,16 +36,17 @@ export type Requirement = {
   criteria: string;
   status: string;
   workflowStepId: string;
+  projectId: string | null;
   priority: Priority;
   createdAt: string;
   updatedAt: string;
 };
 export type RequirementInput = Pick<
   Requirement,
-  "title" | "description" | "criteria" | "workflowStepId" | "priority"
+  "title" | "description" | "criteria" | "workflowStepId" | "priority" | "projectId"
 >;
 export type Workspace = {
-  version: 1;
+  version: 2;
   configuration: Configuration;
   requirements: Requirement[];
   nextNumber: number;
@@ -53,6 +57,7 @@ export const storageKey = "zambi.workspace.v1";
 
 export function defaultConfiguration(): Configuration {
   return {
+    projects: [{ id: testProjectId, name: "zAMBI" }],
     statuses: [
       { id: "status-open", name: "Offen", category: "open" },
       { id: "status-active", name: "In Bearbeitung", category: "active" },
@@ -99,7 +104,7 @@ export function defaultConfiguration(): Configuration {
 }
 export function emptyWorkspace(): Workspace {
   return {
-    version: 1,
+    version: 2,
     configuration: defaultConfiguration(),
     requirements: [],
     nextNumber: 1,
@@ -121,12 +126,13 @@ function unique(values: string[]) {
 export function configurationErrors(config: Configuration): string[] {
   const errors: string[] = [];
   const groups = [
+    ["Projekte", config.projects],
     ["Status", config.statuses],
     ["Rollen", config.roles],
     ["Workflow-Schritte", config.steps],
   ] as const;
   for (const [label, items] of groups) {
-    if (!items.length)
+    if (!items.length && label !== "Projekte")
       errors.push(`${label}: Mindestens ein Eintrag ist erforderlich.`);
     if (items.some((item) => !name(item.name)))
       errors.push(`${label}: Bitte Namen mit 1 bis 80 Zeichen eingeben.`);
@@ -161,10 +167,13 @@ export function configurationErrors(config: Configuration): string[] {
 export function isConfiguration(value: unknown): value is Configuration {
   if (
     !record(value) ||
+    !Array.isArray(value.projects) ||
     !Array.isArray(value.statuses) ||
     !Array.isArray(value.roles) ||
     !Array.isArray(value.steps)
   )
+    return false;
+  if (!value.projects.every((item) => record(item) && text(item.id) && text(item.name)))
     return false;
   if (
     !value.statuses.every(
@@ -228,7 +237,7 @@ function isBaseRequirement(
 export function isWorkspace(value: unknown): value is Workspace {
   if (
     !record(value) ||
-    value.version !== 1 ||
+    value.version !== 2 ||
     (value.testDataVersion !== undefined && value.testDataVersion !== 1) ||
     !isConfiguration(value.configuration) ||
     !Array.isArray(value.requirements)
@@ -239,6 +248,7 @@ export function isWorkspace(value: unknown): value is Workspace {
     !value.requirements.every(
       (item) =>
         isBaseRequirement(item) &&
+        (item.projectId === null || (text(item.projectId) && config.projects.some((project) => project.id === item.projectId))) &&
         text(item.workflowStepId) &&
         config.steps.some(
           (step) =>
@@ -269,7 +279,7 @@ export function migrateLegacy(data: unknown): Workspace {
       (step) => step.statusId === status?.id,
     );
     if (!status || !step) throw new Error("Unbekannter bisheriger Status");
-    return { ...item, status: status.id, workflowStepId: step.id };
+    return { ...item, projectId: item.isTestData ? testProjectId : null, status: status.id, workflowStepId: step.id };
   });
   workspace.nextNumber = workspace.requirements.reduce(
     (next, item) => Math.max(next, item.number + 1),
@@ -277,6 +287,22 @@ export function migrateLegacy(data: unknown): Workspace {
   );
   if (!isWorkspace(workspace))
     throw new Error("Ungültige bisherige Anforderungen");
+  return workspace;
+}
+/** Übernimmt Arbeitsbereiche vor Einführung der Projekte ohne bestehende Inhalte zu ändern. */
+export function migrateWorkspace(value: unknown): Workspace {
+  if (!record(value) || value.version !== 1 || !record(value.configuration) || !Array.isArray(value.requirements))
+    throw new Error("Ungültige bisherige zAMBI-Daten");
+  const workspace = {
+    ...value,
+    version: 2,
+    configuration: { ...value.configuration, projects: [{ id: testProjectId, name: "zAMBI" }] },
+    requirements: value.requirements.map((item: unknown) => {
+      if (!record(item)) throw new Error("Ungültige bisherige Anforderung");
+      return { ...item, projectId: item.isTestData === true ? testProjectId : null };
+    }),
+  };
+  if (!isWorkspace(workspace)) throw new Error("Ungültige bisherige zAMBI-Daten");
   return workspace;
 }
 export type LoadResult = {
@@ -294,9 +320,11 @@ export function loadWorkspace(
   try {
     raw = storage.getItem(storageKey);
     if (raw !== null) {
-      const workspace: unknown = JSON.parse(raw);
+      const parsed: unknown = JSON.parse(raw);
+      const migrated = record(parsed) && parsed.version === 1;
+      const workspace = migrated ? migrateWorkspace(parsed) : parsed;
       if (!isWorkspace(workspace)) throw new Error("Ungültige zAMBI-Daten");
-      return { workspace, error: null, raw, legacyRaw, migrated: false };
+      return { workspace, error: null, raw, legacyRaw, migrated };
     }
     legacyRaw = storage.getItem(legacyStorageKey);
     const workspace =
@@ -329,6 +357,8 @@ export function applyConfiguration(
   const errors = configurationErrors(configuration);
   if (errors.length) throw new Error(errors[0]);
   const requirements = workspace.requirements.map((item) => {
+    if (item.projectId !== null && !configuration.projects.some((project) => project.id === item.projectId))
+      throw new Error("Ein Projekt mit bestehenden Anforderungen darf nicht entfernt werden. Weise die Anforderungen zuerst einem anderen Projekt oder „Ohne Projekt“ zu.");
     const step = configuration.steps.find(
       (step) => step.id === item.workflowStepId,
     );
@@ -361,6 +391,7 @@ export function exportRequirements(workspace: Workspace) {
       status: workspace.configuration.statuses.find(
         (status) => status.id === item.status,
       )!.name,
+      project: projectName(workspace.configuration, item.projectId),
       workflowStep: step.name,
       roles: roleNames(workspace.configuration, step),
     };
@@ -372,7 +403,13 @@ export function seedTestRequirements(workspace: Workspace, now = new Date().toIS
   const existing = new Set(workspace.requirements.map((item) => item.anforderungNr));
   const missing = testRequirements.filter((item) => !existing.has(item.anforderungNr));
   if (!missing.length) return workspace.testDataVersion === 1 ? workspace : { ...workspace, testDataVersion: 1 };
-  const step = workspace.configuration.steps[0];
+  const existingProject = workspace.configuration.projects.find((project) => project.id === testProjectId)
+    ?? workspace.configuration.projects.find((project) => project.name.trim().toLocaleLowerCase("de") === "zambi");
+  const project = existingProject ?? { id: testProjectId, name: "zAMBI" };
+  const configuration = existingProject ? workspace.configuration : {
+    ...workspace.configuration, projects: [...workspace.configuration.projects, project],
+  };
+  const step = configuration.steps[0];
   const additions: Requirement[] = missing.map((item, index) => ({
     anforderungNr: item.anforderungNr,
     verbindlichkeit: item.verbindlichkeit,
@@ -385,12 +422,14 @@ export function seedTestRequirements(workspace: Workspace, now = new Date().toIS
     status: step.statusId,
     priority: "Mittel",
     isTestData: true,
+    projectId: project.id,
     createdAt: now,
     updatedAt: now,
   }));
   return {
     ...workspace,
     testDataVersion: 1,
+    configuration,
     requirements: [...workspace.requirements, ...additions],
     nextNumber: workspace.nextNumber + additions.length,
   };
@@ -402,4 +441,8 @@ export function displayRequirementId(item: Requirement) {
 /** Einmalige Ergänzung für bestehende und neue Prototyp-Arbeitsbereiche. */
 export function initializeTestRequirements(workspace: Workspace): Workspace {
   return workspace.testDataVersion === 1 ? workspace : seedTestRequirements(workspace);
+}
+
+export function projectName(configuration: Configuration, projectId: string | null) {
+  return configuration.projects.find((project) => project.id === projectId)?.name ?? "Ohne Projekt";
 }

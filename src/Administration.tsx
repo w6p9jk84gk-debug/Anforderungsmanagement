@@ -4,7 +4,7 @@ import { Icon } from "./Icon";
 import { categories, categoryLabels, configurationErrors } from "./model";
 import type { Category, Configuration, Requirement } from "./model";
 
-type Tab = "statuses" | "roles" | "workflow";
+type Tab = "statuses" | "roles" | "workflow" | "projects";
 export function Administration({
   configuration,
   requirements,
@@ -34,6 +34,7 @@ export function Administration({
   function save(event: FormEvent) {
     event.preventDefault();
     const cleaned: Configuration = {
+      projects: draft.projects.map((project) => ({ ...project, name: project.name.trim() })),
       statuses: draft.statuses.map((status) => ({
         ...status,
         name: status.name.trim(),
@@ -81,7 +82,7 @@ export function Administration({
         <div>
           <span className="eyebrow">zAMBI verwalten</span>
           <h1>Administration</h1>
-          <p>Status, Rollen und den Ablauf deiner Anforderungen gestalten.</p>
+          <p>Projekte, Status, Rollen und den Ablauf deiner Anforderungen gestalten.</p>
         </div>
         <button
           className="button secondary"
@@ -103,6 +104,7 @@ export function Administration({
       <nav className="admin-tabs" aria-label="Administrationsbereiche">
         {(
           [
+            ["projects", "Projekte", draft.projects.length],
             ["statuses", "Status", draft.statuses.length],
             ["roles", "Rollen", draft.roles.length],
             ["workflow", "Workflow-Editor", draft.steps.length],
@@ -137,6 +139,73 @@ export function Administration({
           </div>
         )}
         <fieldset className="admin-fields" disabled={readOnly}>
+          {tab === "projects" && (
+            <section className="panel admin-panel" aria-labelledby="projects-heading">
+              <div className="panel-heading">
+                <div>
+                  <h2 id="projects-heading">Projekte verwalten</h2>
+                  <p>Ordne Anforderungen einem Projekt zu.</p>
+                </div>
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => setDraft((current) => ({
+                    ...current,
+                    projects: [...current.projects, { id: crypto.randomUUID(), name: "" }],
+                  }))}
+                >
+                  <Icon name="plus" size={18} />
+                  Projekt hinzufügen
+                </button>
+              </div>
+              <div className="config-list">
+                {draft.projects.map((project, index) => {
+                  const usages = requirements.filter((item) => item.projectId === project.id).length;
+                  return (
+                    <article className="config-row" key={project.id}>
+                      <span className="role-icon"><Icon name="building" /></span>
+                      <label className="grow">
+                        Projektname
+                        <input
+                          aria-label={"Projektname " + (index + 1)}
+                          value={project.name}
+                          required
+                          maxLength={80}
+                          placeholder="z. B. zAMBI"
+                          onChange={(event) => setDraft((current) => ({
+                            ...current,
+                            projects: current.projects.map((item) => item.id === project.id
+                              ? { ...item, name: event.target.value } : item),
+                          }))}
+                        />
+                      </label>
+                      <div className="row-actions">
+                        <span className="usage-note">
+                          {usages ? `${usages} ${usages === 1 ? "Anforderung" : "Anforderungen"}` : "Nicht zugewiesen"}
+                        </span>
+                        <button
+                          type="button"
+                          className="icon-button danger"
+                          aria-label={"Projekt " + (index + 1) + " löschen"}
+                          disabled={usages > 0}
+                          title={usages ? "Anforderungen zuerst einem anderen Projekt oder „Ohne Projekt“ zuweisen." : "Projekt entfernen"}
+                          onClick={() => setDraft((current) => ({
+                            ...current, projects: current.projects.filter((item) => item.id !== project.id),
+                          }))}
+                        >
+                          <Icon name="trash" size={19} />
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+                {!draft.projects.length && <p className="panel-note">Noch keine Projekte vorhanden. Anforderungen können auch ohne Projekt erfasst werden.</p>}
+              </div>
+              <p className="panel-note">
+                Umbenennen erhält alle Zuordnungen. Projekte mit Anforderungen können erst nach dem Ändern der Zuordnungen gelöscht werden.
+              </p>
+            </section>
+          )}
           {tab === "statuses" && (
             <section
               className="panel admin-panel"

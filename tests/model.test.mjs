@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  initializeTestRequirements, seedTestRequirements, displayRequirementId, applyConfiguration, configurationErrors, defaultConfiguration, emptyWorkspace,
+  migrateWorkspace, projectName, testProjectId, initializeTestRequirements, seedTestRequirements, displayRequirementId, applyConfiguration, configurationErrors, defaultConfiguration, emptyWorkspace,
   exportRequirements, isWorkspace, legacyStorageKey, loadWorkspace, migrateLegacy, storageKey,
 } from '../src/model.ts';
 
@@ -167,5 +167,113 @@ test('gelöschte Testanforderungen werden nach Initialisierung nur auf Wunsch wi
   workspace.requirements = workspace.requirements.filter(item => item.anforderungNr !== 'AF00');
   assert.equal(initializeTestRequirements(workspace).requirements.length, 18);
   assert.equal(seedTestRequirements(workspace).requirements.length, 19);
+  assert.equal(isWorkspace(workspace), true);
+});
+
+
+function previousWorkspace() {
+  const workspace = seedTestRequirements(fixture());
+  workspace.version = 1;
+  delete workspace.configuration.projects;
+  workspace.requirements.forEach(item => { delete item.projectId; });
+  return workspace;
+}
+test('Migration ordnet vorhandene Testdaten zAMBI zu und erhält alle bisherigen Inhalte', () => {
+  const before = previousWorkspace();
+  const original = structuredClone(before);
+  const raw = JSON.stringify(before);
+  const result = loadWorkspace(storage({ [storageKey]: raw }));
+  assert.equal(result.error, null);
+  assert.equal(result.migrated, true);
+  assert.equal(result.raw, raw);
+  assert.equal(isWorkspace(result.workspace), true);
+  assert.deepEqual(before, original);
+  assert.equal(result.workspace.version, 2);
+  assert.equal(result.workspace.requirements[0].projectId, null);
+  assert.equal(result.workspace.requirements.filter(item => item.projectId === testProjectId).length, 19);
+  assert.equal(result.workspace.nextNumber, before.nextNumber);
+  for (let i = 0; i < before.requirements.length; i++) {
+    const { projectId, ...rest } = result.workspace.requirements[i];
+    assert.deepEqual(rest, before.requirements[i]);
+  }
+});
+test('erneutes Laden speichert und erhält geänderte Projektzuordnungen ohne weitere Migration', () => {
+  const workspace = migrateWorkspace(previousWorkspace());
+  workspace.configuration.projects.push({ id: 'bau', name: 'Bauprojekt' });
+  workspace.requirements[1].projectId = 'bau';
+  const result = loadWorkspace(storage({ [storageKey]: JSON.stringify(workspace) }));
+  assert.equal(result.error, null);
+  assert.equal(result.migrated, false);
+  assert.deepEqual(initializeTestRequirements(result.workspace), workspace);
+});
+test('Migration beschädigter Arbeitsbereiche bleibt gesperrt und bewahrt Rohdaten', () => {
+  const workspace = previousWorkspace();
+  workspace.requirements[0].workflowStepId = 'unbekannt';
+  const raw = JSON.stringify(workspace);
+  assert.throws(() => migrateWorkspace(workspace));
+  const result = loadWorkspace(storage({ [storageKey]: raw }));
+  assert.ok(result.error);
+  assert.equal(result.raw, raw);
+});
+test('neue Testanforderungen erhalten zAMBI und Seeding erzeugt keine doppelten Projekte', () => {
+  const workspace = seedTestRequirements(emptyWorkspace());
+  assert.ok(workspace.requirements.every(item => item.projectId === testProjectId));
+  assert.deepEqual(seedTestRequirements(workspace), workspace);
+  assert.equal(workspace.configuration.projects.length, 1);
+  const withoutProjects = emptyWorkspace();
+  withoutProjects.configuration.projects = [];
+  const seeded = seedTestRequirements(withoutProjects);
+  assert.equal(seeded.configuration.projects.length, 1);
+  assert.equal(isWorkspace(seeded), true);
+  // Ein zuvor umbenanntes Projekt behält seine Kennung und seinen neuen Namen.
+  workspace.configuration.projects[0].name = 'zAMBI neu';
+  workspace.requirements.pop();
+  const restored = seedTestRequirements(workspace);
+  assert.equal(restored.configuration.projects.length, 1);
+  assert.equal(restored.configuration.projects[0].name, 'zAMBI neu');
+  assert.ok(restored.requirements.every(item => item.projectId === testProjectId));
+});
+test('Umbenennen eines Projekts erhält Zuordnungen und erscheint im Export', () => {
+  const workspace = seedTestRequirements(emptyWorkspace());
+  const configuration = structuredClone(workspace.configuration);
+  configuration.projects[0].name = 'zAMBI Weiterentwicklung';
+  const next = applyConfiguration(workspace, configuration);
+  assert.equal(next.requirements[0].projectId, testProjectId);
+  assert.equal(projectName(next.configuration, testProjectId), 'zAMBI Weiterentwicklung');
+  assert.equal(exportRequirements(next)[0].project, 'zAMBI Weiterentwicklung');
+  assert.equal(exportRequirements(next)[0].projectId, testProjectId);
+  assert.equal(workspace.configuration.projects[0].name, 'zAMBI');
+});
+test('verwendete Projekte sind vor Löschen geschützt, unbenutzte können entfernt werden', () => {
+  const workspace = seedTestRequirements(emptyWorkspace());
+  const config = { ...workspace.configuration, projects: [] };
+  assert.throws(() => applyConfiguration(workspace, config), /Projekt mit bestehenden Anforderungen/);
+  workspace.requirements = workspace.requirements.map(item => ({ ...item, projectId: null }));
+  const next = applyConfiguration(workspace, config);
+  assert.equal(isWorkspace(next), true);
+  assert.equal(projectName(next.configuration, null), 'Ohne Projekt');
+});
+test('Projektdefinitionen müssen gültig und eindeutig sein; eine leere Liste ist zulässig', () => {
+  const workspace = emptyWorkspace();
+  workspace.configuration.projects = [];
+  assert.equal(isWorkspace(workspace), true);
+  for (const projects of [
+    [{ id: 'a', name: '' }],
+    [{ id: '', name: 'Projekt' }],
+    [{ id: 'a', name: 'zAMBI' }, { id: 'b', name: ' ZAMBI ' }],
+    [{ id: 'a', name: 'A' }, { id: 'a', name: 'B' }],
+    [{ id: 'a', name: 'x'.repeat(81) }],
+  ]) {
+    workspace.configuration.projects = projects;
+    assert.equal(isWorkspace(workspace), false);
+  }
+});
+test('Anforderungen dürfen ausschliesslich einem vorhandenen Projekt oder keinem zugeordnet sein', () => {
+  const workspace = fixture();
+  workspace.requirements[0].projectId = 'unbekannt';
+  assert.equal(isWorkspace(workspace), false);
+  delete workspace.requirements[0].projectId;
+  assert.equal(isWorkspace(workspace), false);
+  workspace.requirements[0].projectId = null;
   assert.equal(isWorkspace(workspace), true);
 });

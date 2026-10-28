@@ -8,6 +8,18 @@ Die Oberfläche verwendet Rot (`#dc0018`) als Akzentfarbe, weiße und hellgraue 
 
 Das vom Benutzer bereitgestellte zAMBI-Elefantenmotiv wurde für die Webdarstellung mit transparentem Hintergrund aufbereitet und liegt unter `public/zambi-logo.png`. Die Anwendung lädt das Logo über den konfigurierten Vite-Basispfad, damit es auch unter GitHub Pages und auf der Administrationsseite erscheint. Es werden keine externen Schriftarten geladen.
 
+## Prototyp und Testsystem
+
+Die Anwendung ist als **Prototyp · Testsystem** gekennzeichnet: mit einem auch auf Mobilgeräten sichtbaren, beim Scrollen stehenbleibenden Hinweis, im Browsertitel und im Anforderungsdialog.
+
+## Projekte
+
+Unter **Administration → Projekte** lassen sich Projekte anlegen, umbenennen und unbenutzte Projekte löschen. Änderungen werden mit **Konfiguration speichern** übernommen. Bereits zugeordnete Anforderungen schützen ein Projekt vor dem Löschen; ordne sie zuerst einem anderen Projekt oder **Ohne Projekt** zu. Namen müssen eindeutig sein.
+
+Im Anforderungsdialog steht die Projektauswahl bereit. Die Gesamtübersicht zeigt das Projekt und bietet Projektfilter, Suche nach Projektname und Sortierung nach Projekt. Der JSON-Export enthält `projectId` sowie den lesbaren Projektnamen.
+
+Bestehende Browserdaten werden automatisch auf Datenformat 2 erweitert und über denselben Speicherschlüssel gesichert. Die vorhandenen Testanforderungen erhalten das Projekt **zAMBI**; andere Anforderungen bleiben zunächst ohne Projekt. Inhalte, Kennungen, Zeitstempel und Workflow-Konfiguration bleiben erhalten. Spätere Änderungen an Projektzuordnungen werden beim Neuladen nicht zurückgesetzt. Neue Testdaten gehören ebenfalls zu zAMBI.
+
 ## Funktionen
 
 - Anforderungen mit Titel, Beschreibung und Akzeptanzkriterien anlegen, bearbeiten und nach Bestätigung löschen.

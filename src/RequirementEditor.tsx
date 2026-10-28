@@ -31,6 +31,7 @@ export function RequirementEditor({
   const [stepId, setStepId] = useState(
     item?.workflowStepId ?? configuration.steps[0].id,
   );
+  const [projectId, setProjectId] = useState(item?.projectId ?? "");
   const [priority, setPriority] = useState<Priority>(
     item?.priority ?? "Mittel",
   );
@@ -59,6 +60,7 @@ export function RequirementEditor({
         criteria: criteria.trim(),
         workflowStepId: stepId,
         priority,
+        projectId: projectId || null,
       })
     )
       onClose();
@@ -76,6 +78,7 @@ export function RequirementEditor({
             <span className="eyebrow">
               {item ? displayRequirementId(item) : "zAMBI · Anforderungen"}
             </span>
+            <span className="prototype-label">Prototyp · Testsystem</span>
             <h2 id="editor-title">
               {item ? "Anforderung bearbeiten" : "Neue Anforderung"}
             </h2>
@@ -109,6 +112,15 @@ export function RequirementEditor({
               }}
               placeholder="Was wird für das Bau- oder Immobilienvorhaben benötigt?"
             />
+          </label>
+          <label>
+            Projekt
+            <select aria-label="Projekt" value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+              <option value="">Ohne Projekt</option>
+              {configuration.projects.map((project) => (
+                <option key={project.id} value={project.id}>{project.name}</option>
+              ))}
+            </select>
           </label>
           <label>
             Beschreibung

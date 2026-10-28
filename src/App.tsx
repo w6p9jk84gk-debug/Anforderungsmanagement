@@ -10,6 +10,7 @@ import {
   legacyStorageKey,
   loadWorkspace,
   priorities,
+  projectName,
   displayRequirementId,
   seedTestRequirements,
   initializeTestRequirements,
@@ -47,6 +48,7 @@ export function App() {
   const [configurationDirty, setConfigurationDirty] = useState(false);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [projectFilter, setProjectFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [sort, setSort] = useState("newest");
   const [editor, setEditor] = useState<{ item: Requirement | null } | null>(
@@ -70,7 +72,7 @@ export function App() {
     return () => window.removeEventListener("beforeunload", protectChanges);
   }, [configurationDirty]);
   useEffect(() => {
-    document.title = `${page === "administration" ? "Administration" : "Anforderungen"} · zAMBI`;
+    document.title = `${page === "administration" ? "Administration" : "Anforderungen"} · zAMBI · Prototyp / Testsystem`;
   }, [page]);
   function navigate(event: MouseEvent<HTMLAnchorElement>, next: Page) {
     event.preventDefault();
@@ -109,7 +111,7 @@ export function App() {
       }
       if (!isWorkspace(next)) {
         setError(
-          "Die Änderung ist unvollständig und wurde nicht gespeichert. Bitte prüfe Status, Rollen und Workflow-Zuweisungen.",
+          "Die Änderung ist unvollständig und wurde nicht gespeichert. Bitte prüfe Projekte, Status, Rollen und Workflow-Zuweisungen.",
         );
         return false;
       }
@@ -131,8 +133,8 @@ export function App() {
     if (readOnly || testDataInitialized.current) return;
     testDataInitialized.current = true;
     const next = initializeTestRequirements(initial.workspace);
-    if (next !== initial.workspace && persist(next)) {
-      setNotice("Testanforderungen geladen.");
+    if (next !== initial.workspace || initial.migrated) {
+      if (persist(next) && next !== initial.workspace) setNotice("Testanforderungen geladen.");
     }
   }, []);
   function saveRequirement(value: RequirementInput) {
@@ -194,6 +196,7 @@ export function App() {
       if (!persist(applyConfiguration(workspace, next))) return false;
       setConfigurationDirty(false);
       setStatusFilter("all");
+      setProjectFilter("all");
       setNotice("Konfiguration gespeichert.");
       return true;
     } catch (issue) {
@@ -213,9 +216,10 @@ export function App() {
           (step) => step.id === item.workflowStepId,
         )!;
         return (
+          (projectFilter === "all" || (projectFilter === "none" ? item.projectId === null : item.projectId === projectFilter)) &&
           (statusFilter === "all" || item.status === statusFilter) &&
           (priorityFilter === "all" || item.priority === priorityFilter) &&
-          `${displayRequirementId(item)} ${item.verbindlichkeit ?? ""} ${item.isTestData ? "Testdaten" : ""} ${item.title} ${item.description} ${item.criteria} ${step.name} ${roleNames(configuration, step).join(" ")}`
+          `${displayRequirementId(item)} ${item.verbindlichkeit ?? ""} ${item.isTestData ? "Testdaten" : ""} ${projectName(configuration, item.projectId)} ${item.title} ${item.description} ${item.criteria} ${step.name} ${roleNames(configuration, step).join(" ")}`
             .toLocaleLowerCase("de")
             .includes(text)
         );
@@ -224,15 +228,18 @@ export function App() {
         sort === "priority"
           ? priorities.indexOf(a.priority) - priorities.indexOf(b.priority) ||
             b.number - a.number
+          : sort === "project"
+            ? projectName(configuration, a.projectId).localeCompare(projectName(configuration, b.projectId), "de") || b.number - a.number
           : sort === "title"
             ? a.title.localeCompare(b.title, "de")
             : b.number - a.number,
       );
-  }, [requirements, configuration, query, statusFilter, priorityFilter, sort]);
+  }, [requirements, configuration, query, statusFilter, priorityFilter, projectFilter, sort]);
   function resetFilters() {
     setQuery("");
     setStatusFilter("all");
     setPriorityFilter("all");
+    setProjectFilter("all");
   }
   const today = () => new Date().toISOString().slice(0, 10);
   const categoryCount = (category: string) =>
@@ -308,9 +315,13 @@ export function App() {
           </span>
           <span className="local-label">
             <span className="local-dot" />
-            Lokale Arbeitsversion
+            Prototyp · Testsystem
           </span>
         </header>
+        <div className="prototype-banner" role="note" aria-label="Prototyp und Testsystem">
+          <strong>Prototyp · Testsystem</strong>
+          <span>Diese Anwendung dient der Erprobung.</span>
+        </div>
         <main id="page-content" tabIndex={-1}>
           {error && (
             <div className="error-message" role="alert">
@@ -446,7 +457,7 @@ export function App() {
                       <input
                         aria-label="Anforderungen durchsuchen"
                         value={query}
-                        placeholder="Titel, Nummer, Rolle oder Schritt …"
+                        placeholder="Titel, Nummer, Projekt, Rolle oder Schritt …"
                         onChange={(event) => setQuery(event.target.value)}
                       />
                       {query && (
@@ -459,6 +470,20 @@ export function App() {
                         </button>
                       )}
                     </div>
+                  </label>
+                  <label>
+                    Projekt
+                    <select
+                      aria-label="Nach Projekt filtern"
+                      value={projectFilter}
+                      onChange={(event) => setProjectFilter(event.target.value)}
+                    >
+                      <option value="all">Alle Projekte</option>
+                      <option value="none">Ohne Projekt</option>
+                      {configuration.projects.map((project) => (
+                        <option key={project.id} value={project.id}>{project.name}</option>
+                      ))}
+                    </select>
                   </label>
                   <label>
                     Status
@@ -509,6 +534,7 @@ export function App() {
                       <option value="newest">Neueste zuerst</option>
                       <option value="priority">Priorität</option>
                       <option value="title">Titel A–Z</option>
+                      <option value="project">Projekt A–Z</option>
                     </select>
                   </label>
                 </div>
@@ -518,6 +544,7 @@ export function App() {
                       <thead>
                         <tr>
                           <th>Anforderung</th>
+                          <th>Projekt</th>
                           <th>Workflow &amp; Zuständigkeit</th>
                           <th>Status</th>
                           <th>Priorität</th>
@@ -552,6 +579,9 @@ export function App() {
                                   {item.description ||
                                     "Noch keine Beschreibung"}
                                 </p>
+                              </td>
+                              <td data-label="Projekt" className="project-cell">
+                                {projectName(configuration, item.projectId)}
                               </td>
                               <td data-label="Workflow">
                                 <strong className="step-title">
