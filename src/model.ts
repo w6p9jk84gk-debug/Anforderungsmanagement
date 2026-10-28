@@ -1,69 +1,357 @@
-export const statuses = ["Offen", "In Bearbeitung", "Abgeschlossen"] as const;
 export const priorities = ["Hoch", "Mittel", "Niedrig"] as const;
-export type Status = (typeof statuses)[number];
 export type Priority = (typeof priorities)[number];
+export const categories = ["open", "active", "done"] as const;
+export type Category = (typeof categories)[number];
+export const categoryLabels: Record<Category, string> = {
+  open: "Offen",
+  active: "In Bearbeitung",
+  done: "Abgeschlossen",
+};
+export type StatusDefinition = { id: string; name: string; category: Category };
+export type Role = { id: string; name: string; description: string };
+export type WorkflowStep = {
+  id: string;
+  name: string;
+  statusId: string;
+  roleIds: string[];
+};
+export type Configuration = {
+  statuses: StatusDefinition[];
+  roles: Role[];
+  steps: WorkflowStep[];
+};
 export type Requirement = {
   id: string;
   number: number;
   title: string;
   description: string;
   criteria: string;
-  status: Status;
+  status: string;
+  workflowStepId: string;
   priority: Priority;
   createdAt: string;
   updatedAt: string;
 };
 export type RequirementInput = Pick<
   Requirement,
-  "title" | "description" | "criteria" | "status" | "priority"
+  "title" | "description" | "criteria" | "workflowStepId" | "priority"
 >;
-export const storageKey = "anforderungsmanagement.requirements.v1";
+export type Workspace = {
+  version: 1;
+  configuration: Configuration;
+  requirements: Requirement[];
+  nextNumber: number;
+};
+export const legacyStorageKey = "anforderungsmanagement.requirements.v1";
+export const storageKey = "zambi.workspace.v1";
 
-export function isRequirement(value: unknown): value is Requirement {
-  if (!value || typeof value !== "object") return false;
-  const item = value as Record<string, unknown>;
-  return (
-    typeof item.id === "string" &&
-    Number.isSafeInteger(item.number) &&
-    Number(item.number) > 0 &&
-    typeof item.title === "string" &&
-    item.title.trim().length > 0 &&
-    typeof item.description === "string" &&
-    typeof item.criteria === "string" &&
-    statuses.includes(item.status as Status) &&
-    priorities.includes(item.priority as Priority) &&
-    typeof item.createdAt === "string" &&
-    Number.isFinite(Date.parse(item.createdAt)) &&
-    typeof item.updatedAt === "string" &&
-    Number.isFinite(Date.parse(item.updatedAt))
-  );
+export function defaultConfiguration(): Configuration {
+  return {
+    statuses: [
+      { id: "status-open", name: "Offen", category: "open" },
+      { id: "status-active", name: "In Bearbeitung", category: "active" },
+      { id: "status-done", name: "Abgeschlossen", category: "done" },
+    ],
+    roles: [
+      {
+        id: "role-requester",
+        name: "Antragstellende",
+        description: "Erfassen und konkretisieren Anforderungen.",
+      },
+      {
+        id: "role-specialist",
+        name: "Fachprüfung",
+        description: "Prüft und bearbeitet Anforderungen fachlich.",
+      },
+      {
+        id: "role-approval",
+        name: "Freigabe",
+        description: "Prüft das Ergebnis und schließt die Anforderung ab.",
+      },
+    ],
+    steps: [
+      {
+        id: "step-capture",
+        name: "Erfassung",
+        statusId: "status-open",
+        roleIds: ["role-requester"],
+      },
+      {
+        id: "step-process",
+        name: "Bearbeitung",
+        statusId: "status-active",
+        roleIds: ["role-specialist"],
+      },
+      {
+        id: "step-complete",
+        name: "Abschluss",
+        statusId: "status-done",
+        roleIds: ["role-approval"],
+      },
+    ],
+  };
+}
+export function emptyWorkspace(): Workspace {
+  return {
+    version: 1,
+    configuration: defaultConfiguration(),
+    requirements: [],
+    nextNumber: 1,
+  };
+}
+function record(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function text(value: unknown): value is string {
+  return typeof value === "string";
+}
+function name(value: unknown): value is string {
+  return text(value) && value.trim().length > 0 && value.length <= 80;
+}
+function unique(values: string[]) {
+  return new Set(values).size === values.length;
 }
 
-export function loadRequirements(): {
-  items: Requirement[];
-  error: string | null;
-} {
-  try {
-    const raw = localStorage.getItem(storageKey);
-    if (raw === null) return { items: [], error: null };
-    const data: unknown = JSON.parse(raw);
+export function configurationErrors(config: Configuration): string[] {
+  const errors: string[] = [];
+  const groups = [
+    ["Status", config.statuses],
+    ["Rollen", config.roles],
+    ["Workflow-Schritte", config.steps],
+  ] as const;
+  for (const [label, items] of groups) {
+    if (!items.length)
+      errors.push(`${label}: Mindestens ein Eintrag ist erforderlich.`);
+    if (items.some((item) => !name(item.name)))
+      errors.push(`${label}: Bitte Namen mit 1 bis 80 Zeichen eingeben.`);
+    if (!unique(items.map((item) => item.name.trim().toLocaleLowerCase("de"))))
+      errors.push(`${label}: Namen müssen eindeutig sein.`);
     if (
-      !Array.isArray(data) ||
-      !data.every(isRequirement) ||
-      new Set(data.map((item) => item.id)).size !== data.length ||
-      new Set(data.map((item) => item.number)).size !== data.length
+      !unique(items.map((item) => item.id)) ||
+      items.some((item) => !item.id.trim())
     )
-      throw new Error("Invalid data");
-    return { items: data, error: null };
+      errors.push(`${label}: Kennungen müssen eindeutig sein.`);
+  }
+  for (const step of config.steps) {
+    if (!config.statuses.some((status) => status.id === step.statusId))
+      errors.push(
+        `Schritt „${step.name || "Ohne Namen"}“: Bitte einen vorhandenen Status zuweisen.`,
+      );
+    if (
+      !step.roleIds.length ||
+      !unique(step.roleIds) ||
+      step.roleIds.some((id) => !config.roles.some((role) => role.id === id))
+    )
+      errors.push(
+        `Schritt „${step.name || "Ohne Namen"}“: Bitte mindestens eine vorhandene Rolle zuweisen.`,
+      );
+  }
+  if (config.roles.some((role) => role.description.length > 500))
+    errors.push("Rollenbeschreibungen dürfen höchstens 500 Zeichen enthalten.");
+  if (config.statuses.some((status) => !categories.includes(status.category)))
+    errors.push("Bitte jedem Status eine gültige Gruppe zuweisen.");
+  return errors;
+}
+export function isConfiguration(value: unknown): value is Configuration {
+  if (
+    !record(value) ||
+    !Array.isArray(value.statuses) ||
+    !Array.isArray(value.roles) ||
+    !Array.isArray(value.steps)
+  )
+    return false;
+  if (
+    !value.statuses.every(
+      (item) =>
+        record(item) &&
+        text(item.id) &&
+        text(item.name) &&
+        categories.includes(item.category as Category),
+    )
+  )
+    return false;
+  if (
+    !value.roles.every(
+      (item) =>
+        record(item) &&
+        text(item.id) &&
+        text(item.name) &&
+        text(item.description),
+    )
+  )
+    return false;
+  if (
+    !value.steps.every(
+      (item) =>
+        record(item) &&
+        text(item.id) &&
+        text(item.name) &&
+        text(item.statusId) &&
+        Array.isArray(item.roleIds) &&
+        item.roleIds.every(text),
+    )
+  )
+    return false;
+  return configurationErrors(value as Configuration).length === 0;
+}
+function isBaseRequirement(
+  value: unknown,
+): value is Omit<Requirement, "workflowStepId"> & { workflowStepId?: string } {
+  if (!record(value)) return false;
+  return (
+    text(value.id) &&
+    value.id.trim().length > 0 &&
+    Number.isSafeInteger(value.number) &&
+    Number(value.number) > 0 &&
+    text(value.title) &&
+    value.title.trim().length > 0 &&
+    value.title.length <= 160 &&
+    text(value.description) &&
+    text(value.criteria) &&
+    text(value.status) &&
+    priorities.includes(value.priority as Priority) &&
+    text(value.createdAt) &&
+    Number.isFinite(Date.parse(value.createdAt)) &&
+    text(value.updatedAt) &&
+    Number.isFinite(Date.parse(value.updatedAt))
+  );
+}
+export function isWorkspace(value: unknown): value is Workspace {
+  if (
+    !record(value) ||
+    value.version !== 1 ||
+    !isConfiguration(value.configuration) ||
+    !Array.isArray(value.requirements)
+  )
+    return false;
+  const config = value.configuration;
+  if (
+    !value.requirements.every(
+      (item) =>
+        isBaseRequirement(item) &&
+        text(item.workflowStepId) &&
+        config.steps.some(
+          (step) =>
+            step.id === item.workflowStepId && step.statusId === item.status,
+        ),
+    )
+  )
+    return false;
+  const requirements = value.requirements as Requirement[];
+  return (
+    unique(requirements.map((item) => item.id)) &&
+    unique(requirements.map((item) => String(item.number))) &&
+    Number.isSafeInteger(value.nextNumber) &&
+    Number(value.nextNumber) > 0 &&
+    requirements.every((item) => item.number < Number(value.nextNumber))
+  );
+}
+export function migrateLegacy(data: unknown): Workspace {
+  if (!Array.isArray(data) || !data.every(isBaseRequirement))
+    throw new Error("Ungültige bisherige Anforderungen");
+  const workspace = emptyWorkspace();
+  workspace.requirements = data.map((item) => {
+    const status = workspace.configuration.statuses.find(
+      (status) => status.name === item.status,
+    );
+    const step = workspace.configuration.steps.find(
+      (step) => step.statusId === status?.id,
+    );
+    if (!status || !step) throw new Error("Unbekannter bisheriger Status");
+    return { ...item, status: status.id, workflowStepId: step.id };
+  });
+  workspace.nextNumber = workspace.requirements.reduce(
+    (next, item) => Math.max(next, item.number + 1),
+    1,
+  );
+  if (!isWorkspace(workspace))
+    throw new Error("Ungültige bisherige Anforderungen");
+  return workspace;
+}
+export type LoadResult = {
+  workspace: Workspace;
+  error: string | null;
+  raw: string | null;
+  legacyRaw: string | null;
+  migrated: boolean;
+};
+export function loadWorkspace(
+  storage: Pick<Storage, "getItem"> = localStorage,
+): LoadResult {
+  let raw: string | null = null;
+  let legacyRaw: string | null = null;
+  try {
+    raw = storage.getItem(storageKey);
+    if (raw !== null) {
+      const workspace: unknown = JSON.parse(raw);
+      if (!isWorkspace(workspace)) throw new Error("Ungültige zAMBI-Daten");
+      return { workspace, error: null, raw, legacyRaw, migrated: false };
+    }
+    legacyRaw = storage.getItem(legacyStorageKey);
+    const workspace =
+      legacyRaw === null
+        ? emptyWorkspace()
+        : migrateLegacy(JSON.parse(legacyRaw));
+    return {
+      workspace,
+      error: null,
+      raw,
+      legacyRaw,
+      migrated: legacyRaw !== null,
+    };
   } catch {
     return {
-      items: [],
+      workspace: emptyWorkspace(),
+      raw,
+      legacyRaw,
+      migrated: false,
       error:
-        "Die gespeicherten Daten konnten nicht geladen werden. Sie wurden nicht überschrieben. Prüfe die Browser-Einstellungen oder sichere die vorhandenen Browserdaten.",
+        "Die gespeicherten Daten konnten nicht geladen werden. Sie bleiben unverändert. Änderungen sind zum Schutz deiner Daten gesperrt. Prüfe die Browserdaten oder verwende eine zuvor exportierte Sicherung.",
     };
   }
 }
-
+export function applyConfiguration(
+  workspace: Workspace,
+  configuration: Configuration,
+  changedAt = new Date().toISOString(),
+): Workspace {
+  const errors = configurationErrors(configuration);
+  if (errors.length) throw new Error(errors[0]);
+  const requirements = workspace.requirements.map((item) => {
+    const step = configuration.steps.find(
+      (step) => step.id === item.workflowStepId,
+    );
+    if (!step)
+      throw new Error(
+        "Ein Workflow-Schritt mit bestehenden Anforderungen darf nicht entfernt werden.",
+      );
+    return item.status === step.statusId
+      ? item
+      : { ...item, status: step.statusId, updatedAt: changedAt };
+  });
+  return { ...workspace, configuration, requirements };
+}
 export function requirementId(number: number) {
   return `ANF-${String(number).padStart(3, "0")}`;
+}
+export function roleNames(config: Configuration, step: WorkflowStep) {
+  return step.roleIds.map(
+    (id) =>
+      config.roles.find((role) => role.id === id)?.name ?? "Unbekannte Rolle",
+  );
+}
+export function exportRequirements(workspace: Workspace) {
+  return workspace.requirements.map((item) => {
+    const step = workspace.configuration.steps.find(
+      (step) => step.id === item.workflowStepId,
+    )!;
+    return {
+      ...item,
+      status: workspace.configuration.statuses.find(
+        (status) => status.id === item.status,
+      )!.name,
+      workflowStep: step.name,
+      roles: roleNames(workspace.configuration, step),
+    };
+  });
 }

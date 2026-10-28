@@ -1,16 +1,34 @@
-# Anforderungsmanagement
+# zAMBI
 
-Eine deutschsprachige Web-App zum Erfassen und Verwalten von Anforderungen, gebaut mit React, TypeScript und Vite.
+**zentrales Anforderungsmanagement Bauten Immobilien** – eine deutschsprachige Web-App zum Erfassen und Verwalten von Anforderungen mit konfigurierbaren Status, Rollen und Workflow-Schritten. Gebaut mit React, TypeScript und Vite.
 
 ## Funktionen
 
 - Anforderungen mit Titel, Beschreibung und Akzeptanzkriterien anlegen, bearbeiten und nach Bestätigung löschen.
-- Status: Offen, In Bearbeitung, Abgeschlossen.
+- Status mit frei wählbaren Bezeichnungen und Gruppen für die Fortschrittsübersicht.
+- Administration für Status und Rollen mit Aufgabenbeschreibungen.
+- Workflow-Editor: Schritte anlegen, umbenennen, verschieben und mit einem Status sowie einer oder mehreren Rollen verknüpfen.
+- Anforderungen einem Workflow-Schritt zuweisen; zugehöriger Status und zuständige Rollen werden automatisch angezeigt.
 - Prioritäten: Hoch, Mittel, Niedrig.
 - Volltextsuche, Status- und Prioritätsfilter sowie Sortierung nach Erstellreihenfolge, Priorität oder Titel.
 - Übersicht mit Gesamtzahl und Fortschritt.
 - Lokale Speicherung im Browser und JSON-Export als Datensicherung.
-- Responsive Oberfläche und per Tastatur bedienbare Dialoge.
+- Besser lesbare, responsive Oberfläche mit dauerhaft erreichbarer Administration auch auf Mobilgeräten.
+- Schutz verwendeter Workflow-Schritte vor dem Löschen und Prüfung der Konfiguration vor dem Speichern.
+
+## Status, Rollen und Workflow konfigurieren
+
+1. Öffne **Administration** in der Hauptnavigation.
+2. Unter **Status** kannst du Bezeichnungen ändern und neue Status hinzufügen. Weise jedem Status eine Gruppe zu: Offen, In Bearbeitung oder Abgeschlossen. Diese Gruppen bestimmen die Zähler in der Übersicht.
+3. Unter **Rollen** verwaltest du die Zuständigkeiten und optional deren Aufgabenbeschreibung.
+4. Im **Workflow-Editor** legst du Schritte an. Jeder Schritt erhält einen Namen, einen Status und mindestens eine zuständige Rolle. Mit den Pfeilen änderst du die Reihenfolge.
+5. Klicke **Konfiguration speichern**, um die Änderungen gemeinsam zu übernehmen. Beim Verlassen mit ungespeicherten Änderungen fragt zAMBI nach. **Änderungen verwerfen** stellt die zuletzt gespeicherte Konfiguration wieder her.
+
+Neue Anforderungen beginnen im ersten Workflow-Schritt. Im Anforderungsdialog kannst du den Schritt auswählen oder mit **Nächster Schritt** weitergehen und anschließend speichern. Die Auswahl eines Schritts bestimmt den Status und die angezeigten zuständigen Rollen. Ändert die Administration die Statuszuweisung eines Schritts, gilt die neue Zuweisung auch für bestehende Anforderungen in diesem Schritt.
+
+Status und Rollen lassen sich umbenennen, ohne die Zuordnungen zu verlieren. Zum Löschen eines verwendeten Status oder einer Rolle müssen zuerst die entsprechenden Zuweisungen im Workflow entfernt oder ersetzt werden. Ein Workflow-Schritt mit Anforderungen kann erst entfernt werden, wenn die Anforderungen einem anderen Schritt zugeordnet wurden.
+
+**Diese Version ist eine lokale Konfiguration ohne Anmeldung.** Rollen beschreiben Zuständigkeiten; sie erzwingen keine Zugriffsrechte. Jede Person mit Zugriff auf diesen Browser kann die Administration nutzen. Eine gemeinsame Datenhaltung und geschützte Administrator-Zugänge erfordern später einen Backend-Dienst.
 
 ## Im Browser öffnen (GitHub Pages)
 
@@ -70,11 +88,23 @@ npm run preview -- --port 4173 --strictPort
 
 Der Build prüft TypeScript und erstellt die statischen Dateien in `dist/`. Der Vite-Entwicklungsserver ist für Entwicklung vorgesehen. Für eine Veröffentlichung die Dateien aus `dist/` über einen statischen Webhost bereitstellen.
 
+## Tests
+
+```sh
+npm test
+```
+
+Die Tests prüfen die Übernahme bisheriger Browserdaten, stabile Status- und Rollenzuordnungen, geänderte Workflow-Zuweisungen, das Verhindern ungültiger Konfigurationen und den Schutz bestehender Anforderungen. Der GitHub-Pages-Workflow führt die Tests vor dem Build aus.
+
 ## Datenspeicherung
 
-Die Anwendung startet ohne Beispieldaten. Daten liegen unter `anforderungsmanagement.requirements.v1` im `localStorage` des jeweiligen Browsers. Es gibt keinen Server, keine Anmeldung und keine Synchronisierung zwischen Browsern, Geräten oder mehreren geöffneten Tabs. Gleichzeitiges Bearbeiten in mehreren Tabs kann Änderungen überschreiben. Eine andere Domain oder ein anderer Port hat einen separaten Speicher. Das Löschen der Browserdaten entfernt auch die Anforderungen.
+Die Anwendung startet ohne Beispielanforderungen, aber mit einer anpassbaren Ausgangskonfiguration: Erfassung → Bearbeitung → Abschluss und den Rollen Antragstellende, Fachprüfung und Freigabe. Anforderungen und Konfiguration liegen gemeinsam unter `zambi.workspace.v1` im `localStorage` des jeweiligen Browsers. Konfiguration und Anforderungen werden in einem einzigen Schreibvorgang gespeichert.
 
-Über **Exportieren** lässt sich der aktuelle Stand als JSON herunterladen. Ein JSON-Import ist noch nicht enthalten. Bei ungültigen vorhandenen Browserdaten werden diese nicht automatisch überschrieben; die Anwendung zeigt einen Fehler. Schlägt das Speichern fehl, bleibt der Bearbeitungsdialog mit der Eingabe geöffnet.
+Bisherige Anforderungen unter `anforderungsmanagement.requirements.v1` werden beim ersten Öffnen automatisch gelesen und den passenden Standardschritten zugeordnet, sofern noch kein neuer zAMBI-Arbeitsbereich existiert. Die bisherige Speicherung bleibt als Sicherung unverändert erhalten. Erst beim nächsten Speichern wird der neue Arbeitsbereich angelegt. Vorhandene fehlerhafte zAMBI-Daten führen nicht zu einem unbemerkten Rückfall auf alte Daten; stattdessen werden Änderungen gesperrt und eine Fehlermeldung angezeigt.
+
+Es gibt keinen Server, keine Anmeldung und keine automatische Synchronisierung zwischen Browsern, Geräten oder mehreren geöffneten Tabs. Erkennt zAMBI vor dem Speichern Änderungen durch einen anderen Tab, blockiert es den Schreibvorgang und fordert zum Neuladen auf. Am besten in einem Tab arbeiten. Eine andere Domain oder ein anderer Port hat einen separaten Speicher. Das Löschen der Browserdaten entfernt auch Anforderungen und Konfiguration.
+
+Über **Daten exportieren** lädst du die Anforderungen als JSON-Liste mit lesbaren Status-, Schritt- und Rollennamen herunter. In der Administration exportiert **Konfiguration exportieren** die zuletzt gespeicherten Status, Rollen und Workflow-Schritte. Ein JSON-Import ist noch nicht enthalten. Schlägt das Speichern fehl, bleiben der Bearbeitungsdialog beziehungsweise der Konfigurationsentwurf mit den Eingaben geöffnet.
 
 ## Cloud-Umgebung
 

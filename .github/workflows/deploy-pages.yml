@@ -33,6 +33,9 @@ jobs:
       - name: Install dependencies from lockfile
         run: npm ci
 
+      - name: Test configuration and data migration
+        run: npm test
+
       - name: Type-check and build application
         run: npm run build
 
