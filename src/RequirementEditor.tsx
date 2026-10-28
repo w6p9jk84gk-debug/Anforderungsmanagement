@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Icon } from "./Icon";
-import { priorities, requirementId, roleNames } from "./model";
+import { priorities, displayRequirementId, roleNames } from "./model";
 import type {
   Configuration,
   Priority,
@@ -74,7 +74,7 @@ export function RequirementEditor({
         <header className="editor-header">
           <div>
             <span className="eyebrow">
-              {item ? requirementId(item.number) : "zAMBI · Anforderungen"}
+              {item ? displayRequirementId(item) : "zAMBI · Anforderungen"}
             </span>
             <h2 id="editor-title">
               {item ? "Anforderung bearbeiten" : "Neue Anforderung"}
@@ -95,6 +95,7 @@ export function RequirementEditor({
               {error}
             </div>
           )}
+          {item?.verbindlichkeit && <p className="field-hint">Verbindlichkeit: {item.verbindlichkeit}{item.isTestData ? " · Testdaten" : ""}</p>}
           <label>
             Titel <span className="required">*</span>
             <input

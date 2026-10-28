@@ -115,3 +115,11 @@ Es gibt keinen Server, keine Anmeldung und keine automatische Synchronisierung z
 ## Cloud-Umgebung
 
 Das vorhandene Checkout verwenden; ein zusätzliches Git-Worktree ist nicht erforderlich. Abhängigkeiten und Builddateien können erhalten bleiben, der Entwicklungsserver muss nach einem Neustart erneut gestartet werden. Es sind keine API-Schlüssel, Datenbank oder weiteren Dienste erforderlich.
+
+## Testanforderungen laden
+
+In der Gesamtübersicht ergänzt **Testdaten laden** die 19 hinterlegten Testanforderungen (Definition in `src/testData.ts`). Anschliessend sind sie direkt sichtbar, bearbeitbar und über die bestehende Suche, Status-/Prioritätsfilter und Sortierung erreichbar. Die Suche berücksichtigt auch AF-Nummer, Verbindlichkeit und „Testdaten“.
+
+Die Ergänzung wird über die vorhandene Speicherung im Browser gesichert. Wiederholtes Laden ergänzt ausschliesslich fehlende `anforderungNr`-Werte; bestehende Anforderungen und Änderungen bleiben erhalten. Gelöschte Testanforderungen können mit der Schaltfläche wieder ergänzt werden. Ein Neuladen der Seite allein fügt keine Daten hinzu.
+
+`anforderungNr` erhält die exakten AF-Kennungen zusätzlich zur internen fortlaufenden Nummer; `verbindlichkeit` speichert MUSS/SOLL/KANN unabhängig von der Priorität. `isTestData` kennzeichnet die Datensätze in Übersicht und Dialog. Die Beschreibungen werden unverändert übernommen. Kurze Titel ergänzen das vorhandene Pflichtfeld, die Priorität ist Mittel, der Workflow beginnt im ersten konfigurierten Schritt mit dessen gültigem Status. Zeitstempel entstehen beim Laden; nicht vorgegebene Akzeptanzkriterien bleiben leer. Alle Zusatzfelder bleiben beim Bearbeiten und im JSON-Export erhalten. Bisherige Browserdaten bleiben kompatibel.

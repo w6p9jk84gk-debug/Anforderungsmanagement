@@ -10,7 +10,8 @@ import {
   legacyStorageKey,
   loadWorkspace,
   priorities,
-  requirementId,
+  displayRequirementId,
+  seedTestRequirements,
   roleNames,
   storageKey,
 } from "./model";
@@ -204,7 +205,7 @@ export function App() {
         return (
           (statusFilter === "all" || item.status === statusFilter) &&
           (priorityFilter === "all" || item.priority === priorityFilter) &&
-          `${requirementId(item.number)} ${item.title} ${item.description} ${item.criteria} ${step.name} ${roleNames(configuration, step).join(" ")}`
+          `${displayRequirementId(item)} ${item.verbindlichkeit ?? ""} ${item.isTestData ? "Testdaten" : ""} ${item.title} ${item.description} ${item.criteria} ${step.name} ${roleNames(configuration, step).join(" ")}`
             .toLocaleLowerCase("de")
             .includes(text)
         );
@@ -403,6 +404,17 @@ export function App() {
                   </div>
                   <button
                     className="button secondary"
+                    disabled={readOnly}
+                    onClick={() => {
+                      const next = seedTestRequirements(workspace);
+                      const added = next.requirements.length - requirements.length;
+                      if (persist(next)) setNotice(added ? `${added} Testanforderungen geladen.` : "Alle Testanforderungen sind bereits vorhanden.");
+                    }}
+                  >
+                    Testdaten laden
+                  </button>
+                  <button
+                    className="button secondary"
                     disabled={!requirements.length || readOnly}
                     onClick={() => {
                       downloadJson(
@@ -522,7 +534,7 @@ export function App() {
                                   disabled={readOnly}
                                 >
                                   <span className="requirement-number">
-                                    {requirementId(item.number)}
+                                    {displayRequirementId(item)}{item.verbindlichkeit ? ` · ${item.verbindlichkeit}` : ""}{item.isTestData ? " · Testdaten" : ""}
                                   </span>
                                   <strong>{item.title}</strong>
                                 </button>
@@ -574,7 +586,7 @@ export function App() {
                                 <button
                                   className="icon-button"
                                   aria-label={
-                                    requirementId(item.number) + " bearbeiten"
+                                    displayRequirementId(item) + " bearbeiten"
                                   }
                                   onClick={() => setEditor({ item })}
                                   disabled={readOnly}

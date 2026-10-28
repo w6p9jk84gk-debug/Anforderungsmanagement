@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  applyConfiguration, configurationErrors, defaultConfiguration, emptyWorkspace,
+  seedTestRequirements, displayRequirementId, applyConfiguration, configurationErrors, defaultConfiguration, emptyWorkspace,
   exportRequirements, isWorkspace, legacyStorageKey, loadWorkspace, migrateLegacy, storageKey,
 } from '../src/model.ts';
 
@@ -109,4 +109,45 @@ test('beschädigte neue Daten führen nicht zu einem unbemerkten Rückfall auf a
 test('fehlender Speicherzugriff wird als Fehler gemeldet', () => {
   const result = loadWorkspace({ getItem: () => { throw new Error('Blocked'); } });
   assert.ok(result.error);
+});
+
+
+test('alle 19 Testanforderungen werden exakt geladen und bleiben nach erneutem Laden eindeutig', () => {
+  const expected = ['AF00', 'AF0', 'AF1', 'AF2', 'AF3', 'AFX', 'AFY', 'AF4', 'AF5', 'AF7', 'AF8', 'AF9', 'AF10', 'AF11', 'AF12', 'AF12.1', 'AF13', 'AF14', 'AF15'];
+  const workspace = seedTestRequirements(emptyWorkspace());
+  assert.equal(isWorkspace(workspace), true);
+  assert.deepEqual(workspace.requirements.map(displayRequirementId), expected);
+  assert.equal(workspace.requirements.length, 19);
+  for (const item of workspace.requirements) {
+    assert.equal(item.isTestData, true);
+    assert.ok(item.description.startsWith(`Das System ${item.verbindlichkeit === 'SOLL' ? 'SOLLTE' : item.verbindlichkeit}`));
+    assert.equal(item.status, workspace.configuration.steps[0].statusId);
+  }
+  const reloaded = loadWorkspace(storage({ [storageKey]: JSON.stringify(workspace) }));
+  assert.equal(reloaded.error, null);
+  assert.deepEqual(seedTestRequirements(reloaded.workspace), workspace);
+  assert.equal(exportRequirements(workspace)[0].anforderungNr, 'AF00');
+});
+test('Seeding erhält bestehende und bearbeitete Daten und ergänzt nur fehlende AF-Nummern', () => {
+  const original = fixture();
+  const seeded = seedTestRequirements(original);
+  assert.deepEqual(seeded.requirements[0], original.requirements[0]);
+  assert.equal(original.requirements.length, 1);
+  seeded.requirements[1].description = 'Manuell bearbeitet';
+  seeded.requirements = seeded.requirements.filter(item => item.anforderungNr !== 'AFY');
+  seeded.configuration.steps.reverse();
+  const next = seedTestRequirements(seeded);
+  assert.equal(next.requirements.length, 20);
+  assert.equal(next.requirements[1].description, 'Manuell bearbeitet');
+  assert.equal(next.requirements.at(-1).anforderungNr, 'AFY');
+  assert.equal(next.requirements.at(-1).workflowStepId, seeded.configuration.steps[0].id);
+  assert.equal(isWorkspace(next), true);
+});
+test('ungültige Verbindlichkeiten und doppelte AF-Nummern werden abgewiesen', () => {
+  const workspace = seedTestRequirements(emptyWorkspace());
+  workspace.requirements[0].verbindlichkeit = 'SOLLTE';
+  assert.equal(isWorkspace(workspace), false);
+  workspace.requirements[0].verbindlichkeit = 'SOLL';
+  workspace.requirements[1].anforderungNr = 'AF00';
+  assert.equal(isWorkspace(workspace), false);
 });

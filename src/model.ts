@@ -1,3 +1,5 @@
+import { testRequirements } from "./testData.ts";
+
 export const priorities = ["Hoch", "Mittel", "Niedrig"] as const;
 export type Priority = (typeof priorities)[number];
 export const categories = ["open", "active", "done"] as const;
@@ -23,6 +25,9 @@ export type Configuration = {
 export type Requirement = {
   id: string;
   number: number;
+  anforderungNr?: string;
+  verbindlichkeit?: "MUSS" | "SOLL" | "KANN";
+  isTestData?: boolean;
   title: string;
   description: string;
   criteria: string;
@@ -199,6 +204,9 @@ function isBaseRequirement(
 ): value is Omit<Requirement, "workflowStepId"> & { workflowStepId?: string } {
   if (!record(value)) return false;
   return (
+    (value.anforderungNr === undefined || name(value.anforderungNr)) &&
+    (value.verbindlichkeit === undefined || ["MUSS", "SOLL", "KANN"].includes(String(value.verbindlichkeit))) &&
+    (value.isTestData === undefined || typeof value.isTestData === "boolean") &&
     text(value.id) &&
     value.id.trim().length > 0 &&
     Number.isSafeInteger(value.number) &&
@@ -239,6 +247,7 @@ export function isWorkspace(value: unknown): value is Workspace {
     return false;
   const requirements = value.requirements as Requirement[];
   return (
+    unique(requirements.flatMap((item) => item.anforderungNr ? [item.anforderungNr] : [])) &&
     unique(requirements.map((item) => item.id)) &&
     unique(requirements.map((item) => String(item.number))) &&
     Number.isSafeInteger(value.nextNumber) &&
@@ -354,4 +363,35 @@ export function exportRequirements(workspace: Workspace) {
       roles: roleNames(workspace.configuration, step),
     };
   });
+}
+
+/** Ergänzt nur fehlende AF-Nummern; vorhandene Inhalte werden nie überschrieben. */
+export function seedTestRequirements(workspace: Workspace, now = new Date().toISOString()): Workspace {
+  const existing = new Set(workspace.requirements.map((item) => item.anforderungNr));
+  const missing = testRequirements.filter((item) => !existing.has(item.anforderungNr));
+  if (!missing.length) return workspace;
+  const step = workspace.configuration.steps[0];
+  const additions: Requirement[] = missing.map((item, index) => ({
+    anforderungNr: item.anforderungNr,
+    verbindlichkeit: item.verbindlichkeit,
+    title: item.title,
+    id: crypto.randomUUID(),
+    number: workspace.nextNumber + index,
+    description: item.beschreibung,
+    criteria: "",
+    workflowStepId: step.id,
+    status: step.statusId,
+    priority: "Mittel",
+    isTestData: true,
+    createdAt: now,
+    updatedAt: now,
+  }));
+  return {
+    ...workspace,
+    requirements: [...workspace.requirements, ...additions],
+    nextNumber: workspace.nextNumber + additions.length,
+  };
+}
+export function displayRequirementId(item: Requirement) {
+  return item.anforderungNr ?? requirementId(item.number);
 }
