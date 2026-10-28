@@ -2,6 +2,12 @@
 
 **zentrales Anforderungsmanagement Bauten Immobilien** – eine deutschsprachige Web-App zum Erfassen und Verwalten von Anforderungen mit konfigurierbaren Status, Rollen und Workflow-Schritten. Gebaut mit React, TypeScript und Vite.
 
+## Gestaltung
+
+Die Oberfläche verwendet Rot (`#dc0018`) als Akzentfarbe, weiße und hellgraue Flächen sowie anthrazitfarbene Texte. Die sachliche Gestaltung setzt auf klare Kontraste, ruhige Flächen und eine gut lesbare Systemschrift.
+
+Das vom Benutzer bereitgestellte zAMBI-Elefantenmotiv wurde für die Webdarstellung mit transparentem Hintergrund aufbereitet und liegt unter `public/zambi-logo.png`. Die Anwendung lädt das Logo über den konfigurierten Vite-Basispfad, damit es auch unter GitHub Pages und auf der Administrationsseite erscheint. Es werden keine externen Schriftarten geladen.
+
 ## Funktionen
 
 - Anforderungen mit Titel, Beschreibung und Akzeptanzkriterien anlegen, bearbeiten und nach Bestätigung löschen.

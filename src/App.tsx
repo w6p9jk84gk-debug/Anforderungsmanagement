@@ -240,18 +240,19 @@ export function App() {
           onClick={(event) => navigate(event, "requirements")}
           aria-label="zAMBI Startseite"
         >
-          <span className="brand-icon">
-            <Icon name="building" size={27} />
-          </span>
-          <span className="brand-name">
-            zAMBI<small>Bauten &amp; Immobilien</small>
+          <img
+            className="brand-logo"
+            src={`${import.meta.env.BASE_URL}zambi-logo.png`}
+            alt="zAMBI – Elefanten-Logo"
+            width="144"
+            height="110"
+          />
+          <span className="brand-caption">
+            zentrales Anforderungsmanagement
+            <br />
+            Bauten Immobilien
           </span>
         </a>
-        <p className="brand-description">
-          zentrales Anforderungsmanagement
-          <br />
-          Bauten Immobilien
-        </p>
         <div className="nav-label">Arbeitsbereich</div>
         <nav aria-label="Hauptnavigation">
           <a
