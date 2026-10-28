@@ -12,6 +12,7 @@ import {
   priorities,
   displayRequirementId,
   seedTestRequirements,
+  initializeTestRequirements,
   roleNames,
   storageKey,
 } from "./model";
@@ -125,6 +126,15 @@ export function App() {
       return false;
     }
   }
+  const testDataInitialized = useRef(false);
+  useEffect(() => {
+    if (readOnly || testDataInitialized.current) return;
+    testDataInitialized.current = true;
+    const next = initializeTestRequirements(initial.workspace);
+    if (next !== initial.workspace && persist(next)) {
+      setNotice("Testanforderungen geladen.");
+    }
+  }, []);
   function saveRequirement(value: RequirementInput) {
     const now = new Date().toISOString();
     const current = editor?.item;
@@ -408,7 +418,7 @@ export function App() {
                     onClick={() => {
                       const next = seedTestRequirements(workspace);
                       const added = next.requirements.length - requirements.length;
-                      if (persist(next)) setNotice(added ? `${added} Testanforderungen geladen.` : "Alle Testanforderungen sind bereits vorhanden.");
+                      if (persist(next)) { resetFilters(); setNotice(added ? `${added} Testanforderungen geladen.` : "Alle Testanforderungen sind bereits vorhanden."); }
                     }}
                   >
                     Testdaten laden

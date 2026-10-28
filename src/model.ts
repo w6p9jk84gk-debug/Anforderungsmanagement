@@ -46,6 +46,7 @@ export type Workspace = {
   configuration: Configuration;
   requirements: Requirement[];
   nextNumber: number;
+  testDataVersion?: 1;
 };
 export const legacyStorageKey = "anforderungsmanagement.requirements.v1";
 export const storageKey = "zambi.workspace.v1";
@@ -228,6 +229,7 @@ export function isWorkspace(value: unknown): value is Workspace {
   if (
     !record(value) ||
     value.version !== 1 ||
+    (value.testDataVersion !== undefined && value.testDataVersion !== 1) ||
     !isConfiguration(value.configuration) ||
     !Array.isArray(value.requirements)
   )
@@ -369,7 +371,7 @@ export function exportRequirements(workspace: Workspace) {
 export function seedTestRequirements(workspace: Workspace, now = new Date().toISOString()): Workspace {
   const existing = new Set(workspace.requirements.map((item) => item.anforderungNr));
   const missing = testRequirements.filter((item) => !existing.has(item.anforderungNr));
-  if (!missing.length) return workspace;
+  if (!missing.length) return workspace.testDataVersion === 1 ? workspace : { ...workspace, testDataVersion: 1 };
   const step = workspace.configuration.steps[0];
   const additions: Requirement[] = missing.map((item, index) => ({
     anforderungNr: item.anforderungNr,
@@ -388,10 +390,16 @@ export function seedTestRequirements(workspace: Workspace, now = new Date().toIS
   }));
   return {
     ...workspace,
+    testDataVersion: 1,
     requirements: [...workspace.requirements, ...additions],
     nextNumber: workspace.nextNumber + additions.length,
   };
 }
 export function displayRequirementId(item: Requirement) {
   return item.anforderungNr ?? requirementId(item.number);
+}
+
+/** Einmalige Ergänzung für bestehende und neue Prototyp-Arbeitsbereiche. */
+export function initializeTestRequirements(workspace: Workspace): Workspace {
+  return workspace.testDataVersion === 1 ? workspace : seedTestRequirements(workspace);
 }

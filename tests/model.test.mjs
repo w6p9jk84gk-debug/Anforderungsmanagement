@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  seedTestRequirements, displayRequirementId, applyConfiguration, configurationErrors, defaultConfiguration, emptyWorkspace,
+  initializeTestRequirements, seedTestRequirements, displayRequirementId, applyConfiguration, configurationErrors, defaultConfiguration, emptyWorkspace,
   exportRequirements, isWorkspace, legacyStorageKey, loadWorkspace, migrateLegacy, storageKey,
 } from '../src/model.ts';
 
@@ -150,4 +150,22 @@ test('ungültige Verbindlichkeiten und doppelte AF-Nummern werden abgewiesen', (
   workspace.requirements[0].verbindlichkeit = 'SOLL';
   workspace.requirements[1].anforderungNr = 'AF00';
   assert.equal(isWorkspace(workspace), false);
+});
+
+test('automatische Initialisierung ergänzt auch bestehende Arbeitsbereiche genau einmal', () => {
+  const existing = fixture();
+  const first = initializeTestRequirements(existing);
+  assert.equal(first.requirements.length, 20);
+  assert.deepEqual(first.requirements[0], existing.requirements[0]);
+  assert.equal(first.testDataVersion, 1);
+  const restored = loadWorkspace(storage({ [storageKey]: JSON.stringify(first) })).workspace;
+  assert.equal(initializeTestRequirements(restored), restored);
+  assert.equal(initializeTestRequirements(emptyWorkspace()).requirements.length, 19);
+});
+test('gelöschte Testanforderungen werden nach Initialisierung nur auf Wunsch wieder ergänzt', () => {
+  const workspace = initializeTestRequirements(emptyWorkspace());
+  workspace.requirements = workspace.requirements.filter(item => item.anforderungNr !== 'AF00');
+  assert.equal(initializeTestRequirements(workspace).requirements.length, 18);
+  assert.equal(seedTestRequirements(workspace).requirements.length, 19);
+  assert.equal(isWorkspace(workspace), true);
 });
